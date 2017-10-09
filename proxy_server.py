@@ -82,7 +82,7 @@ def handler(cli_sck):
     :param cli_sck: client socket
     :return: void
     """
-    http_req = cli_sck.recv(BUFSIZE)
+    http_req = get_request_line(cli_sck)
     host_port = parse_req_line(http_req)
     web_srv_sck = init_tcp_conn(host_port[0], host_port[1])
     while True:
@@ -95,12 +95,32 @@ def handler(cli_sck):
     cli_sck.close()
 
 
+def get_request_line(cli_sck):
+    """
+    Gets the request line (i.e. first line) of an HTTP request
+    :param cli_sck: client request
+    :return: string object of the request line
+    """
+    # TODO create loop that calls recv until request line is retrieved
+    # do some while loop that checks for the first \r\n, that is when done searching
+    while 1:
+        cli_sck.recv(BUFSIZE)
+    return http_req
+
+
 def parse_req_line(req):
     """
-    Parses an HTTP request to return its host name and port.
-    :param req: Byte object in HTTP request format
+    Parses an HTTP request line to return its host name and port.
+    :param req: string object of the request line
     :return: tuple consisting of a host_name (string) and a port (integer).
     """
+    # get the first line of the request
+    # break it into the host_name and port
+    # if no port specified, default is 80
+    # must check if host_name is absolute
+    # must check for \r\n until it is found carriage return and line feed
+    # must check that the req followed HTTP request protocol
+    # must decode the request into a string object to allow for parsing
     return (host_name, port)
 
 
