@@ -1,8 +1,6 @@
 import socket
-import _thread
 import time
 import select
-
 
 BUFSIZE = 16
 HOST_NAME = socket.gethostname()
@@ -24,6 +22,23 @@ def init_srv_sck():
     Raises:
         Socket error if socket creation failed
     """
+    try:
+        # Step 1: Create server
+        server_socket = start_srv_sck()
+        print("SUCCESS! Server created at IP Address: ", HOST_IP, ' on port: ', HOST_PORT)
+        print('Multi-threaded server listening for up to ', BACKLOG, ' connections.', "\n")
+        print('Server listening........', '\n')
+
+        # Step 2: Process each request
+        handle_multi_threads(server_socket)
+
+        # Step 3: Close socket if necessary
+        server_socket.close()
+
+    except IOError as err:
+        print("I/O error: {0}".format(err))
+    except ValueError:
+        print("Could not convert data to an integer.")
 
 
 def start_srv_sck():
@@ -31,15 +46,28 @@ def start_srv_sck():
     Creates and starts the proxy server.
     :return: server socket
     """
+    srv_sck = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv_sck.bind((HOST_IP, HOST_PORT))
+    srv_sck.listen(BACKLOG)
     return srv_sck
 
 
-def handle_multi_threads(srv_sock):
+def handle_multi_threads(srv_sck):
     """
     Configures the server to handle multi-threaded processes
-    :param srv_sock: server socket
+    :param srv_sck: server socket
     :return: void
     """
+    while True:
+        read_sockets, write_sockets, err_sockets = select.select([srv_sck], [], [])
+        for sock in read_sockets:
+            if sock == srv_sck:
+                client_socket, addr = sock.accept()
+                read_sockets.append(client_socket)
+                print('*** NEW CONNECTION ***********************************', '\n')
+                print('SUCCESS! Server connected to: ', addr, ' at ', current_time(), '\n')
+            else:
+                _thread.start_new_thread(handler, (sock,))
 
 
 def handler(cli_sck):
@@ -78,6 +106,10 @@ def recv_cli_sck_data(cli_sck):
     :return: byte object
     """
     return b''
+
+
+def current_time():
+    return time.ctime(time.time())
 
 
 if __name__ == "__main":
