@@ -2,7 +2,7 @@ import socket
 import time
 import select
 
-BUFSIZE = 16
+BUFSIZE = 4096
 HOST_NAME = socket.gethostname()
 HOST_IP = socket.gethostbyname(HOST_NAME)
 HOST_PORT = 8888
@@ -75,9 +75,24 @@ def handler(cli_sck):
     Processes an HTTP request from a client socket (which can come from
     a web client browser). Calls the real web server, receives the response,
     and forwards the response to the client socket. Does not support caching.
+    Closes both the web server and client socket once all processing has completed.
+
+    Raises:
+        Socket error if socket creation failed
     :param cli_sck: client socket
     :return: void
     """
+    http_req = cli_sck.recv(BUFSIZE)
+    host_port = parse_req_line(http_req)
+    web_srv_sck = init_tcp_conn(host_port[0], host_port[1])
+    while True:
+        data = web_srv_sck.recv(BUFSIZE)
+        if len(data) > 0:
+            cli_sck.sendall(data)
+        else:
+            break
+    web_srv_sck.close()
+    cli_sck.close()
 
 
 def parse_req_line(req):
@@ -95,17 +110,12 @@ def init_tcp_conn(host_name, port):
     :param host_name: host name
     :param port: port
     :return: socket to the web server that the client originally requested
+
+    Raises:
+        Socket error if socket creation failed
     """
+    # TODO must implement using try except
     return real_srv_sock
-
-
-def recv_cli_sck_data(cli_sck):
-    """
-    Receives HTTP request data from the client socket
-    :param cli_sck: client socket
-    :return: byte object
-    """
-    return b''
 
 
 def current_time():
