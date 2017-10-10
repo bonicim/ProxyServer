@@ -82,8 +82,13 @@ def handler(cli_sck):
     :param cli_sck: client socket
     :return: void
     """
-    http_req = get_request_line(cli_sck)
-    host_port = parse_req_line(http_req)
+    req_line = get_request_line(cli_sck)
+
+    verify_get_request(req_line)
+    verify_absolute_uri(req_line)
+
+    host_port = parse_req_line(req_line)
+    # init will check if conn was successful
     web_srv_sck = init_tcp_conn(host_port[0], host_port[1])
     while True:
         data = web_srv_sck.recv(BUFSIZE)
@@ -108,23 +113,48 @@ def get_request_line(cli_sck):
         if data.find(b'\r\n') != -1:
             # we found the first \r\n which means we have the entire request line
             break
-    return req_line
+    return req_line.decode('utf-8')
 
 
-def parse_req_line(req):
+def verify_get_request(req_line):
+    if is_get_request(req_line):
+        print("Request from client is a GET")
+    else:
+        print("Request from client is not a GET")
+        raise ValueError("Proxy only supports GET")
+
+
+def is_get_request(req_line):
+    return req_line.split(' ')[0] == 'GET'
+
+
+def verify_absolute_uri(req_line):
+    if is_absolute_uri(req_line):
+        print("The requested URI is absolute.")
+    else:
+        print("The requested URI is NOT absolute. Proxy only supports absolute URI.")
+        raise ValueError("The requested URI is NOT absolute. Proxy only supports absolute URI.")
+
+
+def is_absolute_uri(req_line):
+    req_uri = req_line.split(' ')
+    return req_uri[1].find('http') == 0 and req_uri[1].find('://') == 4
+
+
+def parse_req_line(req_line):
     """
-    Parses an HTTP request line to return its host name and port.
+    Parses an HTTP request line to return its host name and port. Assumes that
+    req_line is a properly formatted request line
     :param req: string object of the request line
     :return: tuple consisting of a host_name (string) and a port (integer).
     """
     # TODO implement
-    # get the first line of the request
+    req_line_arr = req_line.split(' ')
+    uri = req_line_arr[1]
+    
+
     # break it into the host_name and port
     # if no port specified, default is 80
-    # must check if host_name is absolute
-    # must check for \r\n until it is found carriage return and line feed
-    # must check that the req followed HTTP request protocol
-    # must decode the request into a string object to allow for parsing
     return (host_name, port)
 
 
