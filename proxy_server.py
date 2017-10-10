@@ -101,11 +101,14 @@ def get_request_line(cli_sck):
     :param cli_sck: client request
     :return: string object of the request line
     """
-    # TODO create loop that calls recv until request line is retrieved
-    # do some while loop that checks for the first \r\n, that is when done searching
-    while 1:
-        cli_sck.recv(BUFSIZE)
-    return http_req
+    req_line = b''
+    while True:
+        data = cli_sck.recv(BUFSIZE)
+        req_line += data
+        if data.find(b'\r\n') != -1:
+            # we found the first \r\n which means we have the entire request line
+            break
+    return req_line
 
 
 def parse_req_line(req):
@@ -114,6 +117,7 @@ def parse_req_line(req):
     :param req: string object of the request line
     :return: tuple consisting of a host_name (string) and a port (integer).
     """
+    # TODO implement
     # get the first line of the request
     # break it into the host_name and port
     # if no port specified, default is 80
