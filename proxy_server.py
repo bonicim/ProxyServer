@@ -196,11 +196,9 @@ def make_relative_uri(http_req_arr):
 
 
 def modify_request_line(req_line, relative_uri):
-    # TODO
-    # split the req into pieces
-    # modify the host name piece
-    # combine the pieces again and ensure it is a byte object
-    return req_line
+    req_line_arr = req_line.split(b' ')
+    req_line_arr[1] = relative_uri
+    return b' '.join(req_line_arr)
 
 
 def parse_relative_uri(host_name):
@@ -256,7 +254,7 @@ def parse_req_line(req_line):
     """
     Parses an HTTP request line to return its host name and port. Assumes that
     req_line is a properly formatted request line
-    :param req: string object of the request line
+    :param req_line: string object of the request line
     :return: tuple consisting of a host_name (string) and a port (integer).
     """
     req_line_arr = req_line.split(' ')  # breaks request line into its 3 pieces
