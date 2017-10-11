@@ -192,6 +192,17 @@ def make_relative_uri(http_req_arr):
     return []
 
 
+def ensure_closed_connection(http_req_arr):
+    index = index_closed_connection_header(http_req_arr)
+    if index == -1:
+        http_req_arr.append(b'Connection:close')
+    else:
+        conn_value = get_connection_value(http_req_arr[index])
+        print("Current connection value is: ", conn_value)
+        http_req_arr[index] = b'Connection:close'
+    return http_req_arr
+
+
 def index_closed_connection_header(http_req_arr):
     for index in range(len(http_req_arr)):
         if http_req_arr[index].startswith(b'Connection'):
@@ -199,25 +210,10 @@ def index_closed_connection_header(http_req_arr):
     return -1
 
 
-def ensure_closed_connection(http_req_arr):
-    # TODO
-    # check array for index
-    # if -1, add it
-    # else check for value and modify
-    if http_req.count(b'Connection') > 0:
-        print()
-        # make a copy of http req and mutate it
-        # remove Keep alive header
-        # make copy
-        # add Connection header
-        # check for close and keep-alive
-        # if close, don't do anythhing
-        # if keep-alive change it
-    else:
-        req_updated = bytearray(http_req)
-        req_updated = req_updated[:len(req_updated) - 2]
-        req_updated += b'Connection:close\r\n\r\n'
-        return req_updated
+def get_connection_value(header):
+    header = header.decode('utf-8')
+    header = header.split(':')
+    return header[1]
 
 
 def is_get_request(req_line):
