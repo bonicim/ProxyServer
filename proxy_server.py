@@ -204,10 +204,11 @@ def modify_request_line(req_line, relative_uri):
 
 
 def parse_relative_uri(host_name):
-    # TODO
-    # get the relative URI
-    # then encode to byte object utf
-    return host_name
+    index = host_name.find('/')
+    if index == -1:
+        return b'/'
+    else:
+        return host_name[index:].encode('utf-8')
 
 
 def ensure_closed_connection(http_req_arr):
