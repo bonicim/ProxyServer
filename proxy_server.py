@@ -2,6 +2,8 @@ import socket
 import time
 import select
 import sys
+import _thread
+
 
 BUFSIZE = 4096
 HOST_NAME = socket.gethostname()
@@ -67,7 +69,7 @@ def handle_multi_threads(srv_sck):
                 client_socket, addr = sock.accept()
                 read_sockets.append(client_socket)
                 print('*** NEW CONNECTION ***********************************', '\n')
-                print('SUCCESS! Server connected to: ', addr, ' at ', current_time(), '\n')
+                print('SUCCESS! Proxy server connected to client at: ', addr, ' at ', current_time(), '\n')
             else:
                 _thread.start_new_thread(handler, (sock,))
 
@@ -97,23 +99,25 @@ def handler(cli_sck):
     print("Verifying that HTTP request is GET...")
     time.sleep(3)
     if not is_get_request(req_line):
-        print("Request from client is not a GET")
+        print("[*]Request from client is not a GET")
         cli_sck.sendall(HTTP_BAD_METHOD)
         sys.exit()
+    else:
+        print("[*]The HTTP request is a GET.")
 
-    print("Verifying that uri is absolute...", '\n')
+    print("Verifying that uri is absolute...")
     time.sleep(3)
     verify_absolute_uri(req_line)
 
     print("Modifying HTTP request for web server...")
     time.sleep(3)
     mod_http_req = modify_http_request(http_req)
-    print("The HTTP request to be sent to the server: ", mod_http_req, '\n')
+    print("[*]The HTTP request to be sent to the server: ", '\n', mod_http_req, '\n')
 
     print("Parsing HTTP request line for host and port...")
     time.sleep(3)
     host_port = parse_req_line(req_line)
-    print("Successfully parsed host and port: ", host_port, '\n')
+    print("[*]Successfully parsed host and port: ", host_port, '\n')
 
     try:
         print("Connecting to web server...")
@@ -153,7 +157,7 @@ def get_http_request(cli_sck):
     while True:
         data = cli_sck.recv(BUFSIZE)
         req += data
-        if data == '\r\n' and req[len(req) - 4:len(req)] == b'\r\n\r\n':
+        if req[len(req) - 4:len(req)] == b'\r\n\r\n':
             break
     return req
 
@@ -217,6 +221,7 @@ def ensure_closed_connection(http_req_arr):
         conn_value = get_connection_value(http_req_arr[index])
         print("Current connection value is: ", conn_value)
         http_req_arr[index] = b'Connection:close'
+        print("Changing connection value: ", http_req_arr[index], '\n')
     return http_req_arr
 
 
@@ -239,7 +244,7 @@ def is_get_request(req_line):
 
 def verify_absolute_uri(req_line):
     if is_absolute_uri(req_line):
-        print("The requested URI is absolute.")
+        print("[*]The requested URI is absolute.", '\n')
     else:
         print("The requested URI is NOT absolute. Proxy only supports absolute URI.")
         raise ValueError("The requested URI is NOT absolute. Proxy only supports absolute URI.")
@@ -290,6 +295,7 @@ def init_tcp_conn(host_name, port):
     """
     real_srv_sck = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     real_srv_sck.bind((host_name, port))
+    real_srv_sck.listen()
     return real_srv_sck
 
 
