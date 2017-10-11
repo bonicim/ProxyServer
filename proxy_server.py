@@ -120,7 +120,7 @@ def handler(cli_sck):
     print("[*]Successfully parsed host and port: ", host_port, '\n')
 
     try:
-        print("Connecting to web server...")
+        print("Connecting to web server...", host_port[0], host_port[1])
         time.sleep(3)
         web_srv_sck = init_tcp_conn(host_port[0], host_port[1])
         print("Successful connection to host and port at socket: ", web_srv_sck, '\n')
@@ -294,8 +294,7 @@ def init_tcp_conn(host_name, port):
     :return: socket to the web server that the client originally requested
     """
     real_srv_sck = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    real_srv_sck.bind((host_name, port))
-    real_srv_sck.listen()
+    real_srv_sck.connect((host_name, port))
     return real_srv_sck
 
 
