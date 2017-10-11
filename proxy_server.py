@@ -1,6 +1,7 @@
 import socket
 import time
 import select
+import sys
 
 BUFSIZE = 4096
 HOST_NAME = socket.gethostname()
@@ -8,6 +9,7 @@ HOST_IP = socket.gethostbyname(HOST_NAME)
 HOST_PORT = 8888
 BACKLOG = 10
 SLEEPYTIME = 3
+HTTP_BAD_METHOD = b'HTTP/1.1 405 METHOD_NOT_ALLOWED\r\nConnection:close\r\n\r\n'
 
 
 def main():
@@ -82,46 +84,110 @@ def handler(cli_sck):
     :param cli_sck: client socket
     :return: void
     """
-    req_line = get_request_line(cli_sck)
+    print("Getting HTTP request...")
+    time.sleep(3)
+    http_req = get_http_request(cli_sck)
+    print("HTTP Request is: ", http_req, '\n')  # http_req is a bytes object
 
-    verify_get_request(req_line)
+    print("Getting HTTP request line...")
+    time.sleep(3)
+    req_line = get_request_line(http_req)  # req_line is a string object
+    print("Request line is: ", req_line, '\n')
+
+    print("Verifying that HTTP request is GET...")
+    time.sleep(3)
+    if not is_get_request(req_line):
+        print("Request from client is not a GET")
+        cli_sck.sendall(HTTP_BAD_METHOD)
+        sys.exit()
+
+    print("Verifying that uri is absolute...", '\n')
+    time.sleep(3)
     verify_absolute_uri(req_line)
 
+    print("Modifying HTTP request for web server...")
+    time.sleep(3)
+    mod_http_req = modify_http_request(http_req)
+    print("The HTTP request to be sent to the server: ", mod_http_req, '\n')
+
+    print("Parsing HTTP request line for host and port...")
+    time.sleep(3)
     host_port = parse_req_line(req_line)
-    # init will check if conn was successful
-    web_srv_sck = init_tcp_conn(host_port[0], host_port[1])
-    while True:
-        data = web_srv_sck.recv(BUFSIZE)
-        if len(data) > 0:
-            cli_sck.sendall(data)
-        else:
-            break
-    web_srv_sck.close()
-    cli_sck.close()
+    print("Successfully parsed host and port: ", host_port, '\n')
+
+    try:
+        print("Connecting to web server...")
+        time.sleep(3)
+        web_srv_sck = init_tcp_conn(host_port[0], host_port[1])
+        print("Successful connection to host and port at socket: ", web_srv_sck, '\n')
+
+        # send the actual request
+        print("Sending modified request to web server...: ")
+        time.sleep(3)
+        web_srv_sck.sendall(mod_http_req)
+
+        # wait for response
+        print("Waiting for response...")
+        time.sleep(3)
+        while True:
+            data = web_srv_sck.recv(BUFSIZE)
+            if len(data) > 0:
+                cli_sck.sendall(data)
+            else:
+                break
+        web_srv_sck.close()
+        cli_sck.close()
+    except IOError as err:
+        print("I/O error: {0}".format(err))
+    except ValueError:
+        print("Could not convert data to an integer.")
 
 
-def get_request_line(cli_sck):
+def get_http_request(cli_sck):
     """
-    Gets the request line (i.e. first line) of an HTTP request
-    :param cli_sck: client request
-    :return: string object of the request line
+    Returns the HTTP request
+    :param cli_sck: client socket
+    :return: http request in byte object type
     """
-    req_line = b''
+    req = b''
     while True:
         data = cli_sck.recv(BUFSIZE)
-        req_line += data
-        if data.find(b'\r\n') != -1:
-            # we found the first \r\n which means we have the entire request line
+        req += data
+        if data == '\r\n' and req[len(req) - 4:len(req)] == b'\r\n\r\n':
             break
-    return req_line.decode('utf-8')
+    return req
 
 
-def verify_get_request(req_line):
-    if is_get_request(req_line):
-        print("Request from client is a GET")
+def get_request_line(http_req):
+    """
+    Gets the request line (i.e. first line) of an HTTP request
+    :param http_req http request in byte object
+    :return: string object of the request line
+    """
+    return http_req[:http_req.find(b'\r\n')].decode('utf-8')
+
+
+def modify_http_request(http_req):
+    mod_http_req = ensure_closed_connection(http_req)
+    return http_req
+
+
+def ensure_closed_connection(http_req):
+    req_arr = http_req.split(b'/r/n')
+    if http_req.count(b'Connection') > 0:
+        print()
+        # make a copy of http req and mutate it
+        # remove Keep alive header
+        # make copy
+        # add Connection header
+        # check for close and keep-alive
+        # if close, don't do anythhing
+        # if keep-alive change it
     else:
-        print("Request from client is not a GET")
-        raise ValueError("Proxy only supports GET")
+        req_updated = bytearray(http_req)
+        req_updated = req_updated[:len(req_updated) - 2]
+        req_updated += b'Connection:close\r\n\r\n'
+        return req_updated
 
 
 def is_get_request(req_line):
@@ -148,28 +214,40 @@ def parse_req_line(req_line):
     :param req: string object of the request line
     :return: tuple consisting of a host_name (string) and a port (integer).
     """
-    # TODO implement
-    req_line_arr = req_line.split(' ')
-    uri = req_line_arr[1]
-    
+    req_line_arr = req_line.split(' ')  # breaks request line into its 3 pieces
+    uri = req_line_arr[1].split('://')[1]  # removes the 'http://' from URI
+    host_name = get_host_name(uri)
+    port = get_port(uri)
+    return host_name, port
 
-    # break it into the host_name and port
-    # if no port specified, default is 80
-    return (host_name, port)
+
+def get_host_name(uri):
+    end = uri.find('/')
+    if end != -1:
+        return uri[:end]
+    else:
+        return uri
+
+
+def get_port(uri):
+    colon = uri.find(':')
+    if colon != -1:
+        int(uri[colon + 1:len(uri)])
+    else:
+        # no port given; default port is 80
+        return 80
 
 
 def init_tcp_conn(host_name, port):
     """
     Initializes and creates a TCP connection to host_name and port
-    :param host_name: host name
-    :param port: port
+    :param host_name: host name is a string
+    :param port: port is an integer
     :return: socket to the web server that the client originally requested
-
-    Raises:
-        Socket error if socket creation failed
     """
-    # TODO must implement using try except
-    return real_srv_sock
+    real_srv_sck = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    real_srv_sck.bind((host_name, port))
+    return real_srv_sck
 
 
 def current_time():
