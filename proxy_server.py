@@ -188,8 +188,26 @@ def convert_to_byte_array(http_req):
 
 
 def make_relative_uri(http_req_arr):
+    req_line = http_req_arr[0].decode('utf-8')  # string rep of request line
+    host_name = parse_req_line(req_line)[0]  # returns a string object of URI
+    relative_uri = parse_relative_uri(host_name)  # returns byte obj rep
+    http_req_arr[0] = modify_request_line(http_req_arr[0], relative_uri)
+    return http_req_arr
+
+
+def modify_request_line(req_line, relative_uri):
     # TODO
-    return []
+    # split the req into pieces
+    # modify the host name piece
+    # combine the pieces again and ensure it is a byte object
+    return req_line
+
+
+def parse_relative_uri(host_name):
+    # TODO
+    # get the relative URI
+    # then encode to byte object utf
+    return host_name
 
 
 def ensure_closed_connection(http_req_arr):
