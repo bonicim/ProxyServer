@@ -168,12 +168,42 @@ def get_request_line(http_req):
 
 
 def modify_http_request(http_req):
-    mod_http_req = ensure_closed_connection(http_req)
-    return http_req
+    http_req_arr = convert_to_byte_array(http_req)
+    http_req_arr = ensure_closed_connection(http_req_arr)
+    http_req_arr = make_relative_uri(http_req_arr)
+    http_req_arr = append_crlf(http_req_arr)
+    return b''.join(http_req_arr)
 
 
-def ensure_closed_connection(http_req):
-    req_arr = http_req.split(b'/r/n')
+def append_crlf(http_req_arr):
+    http_req_arr = list(map(lambda b: b + b'\r\n', http_req_arr))
+    http_req_arr[len(http_req_arr) - 1] += b'\r\n'
+    return http_req_arr
+
+
+def convert_to_byte_array(http_req):
+    mod_http_req = bytearray(http_req)
+    mod_http_req = mod_http_req.split(b'\r\n')
+    return mod_http_req[:len(mod_http_req) - 2]
+
+
+def make_relative_uri(http_req_arr):
+    # TODO
+    return []
+
+
+def index_closed_connection_header(http_req_arr):
+    for index in range(len(http_req_arr)):
+        if http_req_arr[index].startswith(b'Connection'):
+            return index
+    return -1
+
+
+def ensure_closed_connection(http_req_arr):
+    # TODO
+    # check array for index
+    # if -1, add it
+    # else check for value and modify
     if http_req.count(b'Connection') > 0:
         print()
         # make a copy of http req and mutate it
