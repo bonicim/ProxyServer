@@ -135,7 +135,11 @@ def handler(cli_sck):
         time.sleep(3)
         while True:
             data = web_srv_sck.recv(BUFSIZE)
+            # TODO: what if it is a redirect?
+            # if a redirect, spawn another thread that opens connection
+            # then call ?
             if len(data) > 0:
+                print("Sending data to client browser: ", data, '\n' )
                 cli_sck.sendall(data)
             else:
                 break
