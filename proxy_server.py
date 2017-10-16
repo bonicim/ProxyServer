@@ -12,6 +12,8 @@ HOST_PORT = 8888
 BACKLOG = 10
 SLEEPYTIME = 3
 HTTP_BAD_METHOD = b'HTTP/1.1 405 METHOD_NOT_ALLOWED\r\nConnection:close\r\n\r\n'
+DEFAULT_CONNECTION_HEADER = b'Connection:close'
+DEFAULT_HTTP_PORT = 80
 
 
 def main():
@@ -89,11 +91,11 @@ def handler(cli_sck):
     print("Getting HTTP request...")
     time.sleep(3)
     http_req = get_http_request(cli_sck)
-    print("HTTP Request is: ", http_req, '\n')  # http_req is a bytes object
+    print("HTTP Request is: ", http_req, '\n')
 
-    print("Getting HTTP request line...")
+    print("Parsing HTTP request line...")
     time.sleep(3)
-    req_line = get_request_line(http_req)  # req_line is a string object
+    req_line = parse_request_line(http_req)
     print("Request line is: ", req_line, '\n')
 
     print("Verifying that HTTP request is GET...")
@@ -103,9 +105,9 @@ def handler(cli_sck):
         cli_sck.sendall(HTTP_BAD_METHOD)
         sys.exit()
     else:
-        print("[*]The HTTP request is a GET.")
+        print("[*]The HTTP request is a GET.", '\r\n')
 
-    print("Verifying that uri is absolute...")
+    print("Verifying that URI is absolute...")
     time.sleep(3)
     verify_absolute_uri(req_line)
 
@@ -114,30 +116,25 @@ def handler(cli_sck):
     mod_http_req = modify_http_request(http_req)
     print("[*]The HTTP request to be sent to the server: ", '\n', mod_http_req, '\n')
 
-    print("Parsing HTTP request line for host and port...")
+    print("Getting hostname and port...")
     time.sleep(3)
-    host_port = parse_req_line(req_line)
-    print("[*]Successfully parsed host and port: ", host_port, '\n')
+    host_port = get_hostname_port(req_line)
+    print("[*]Successfully obtained hostname and port: ", host_port, '\n')
 
     try:
         print("Connecting to web server...", host_port[0], host_port[1])
         time.sleep(3)
         web_srv_sck = init_tcp_conn(host_port[0], host_port[1])
-        print("Successful connection to host and port at socket: ", web_srv_sck, '\n')
+        print("Successful connection to host and port.", '\n')
 
-        # send the actual request
-        print("Sending modified request to web server...: ")
+        print("Sending modified request to web server...")
         time.sleep(3)
         web_srv_sck.sendall(mod_http_req)
 
-        # wait for response
-        print("Waiting for response...")
-        time.sleep(3)
+        print("Receiving response...")
+        time.sleep(SLEEPYTIME)
         while True:
             data = web_srv_sck.recv(BUFSIZE)
-            # TODO: what if it is a redirect?
-            # if a redirect, spawn another thread that opens connection
-            # then call ?
             if len(data) > 0:
                 print("Sending data to client browser: ", data, '\n' )
                 cli_sck.sendall(data)
@@ -155,7 +152,7 @@ def get_http_request(cli_sck):
     """
     Returns the HTTP request
     :param cli_sck: client socket
-    :return: http request in byte object type
+    :return: byte object representation of an http request
     """
     req = b''
     while True:
@@ -166,27 +163,27 @@ def get_http_request(cli_sck):
     return req
 
 
-def get_request_line(http_req):
+def parse_request_line(http_req):
     """
     Gets the request line (i.e. first line) of an HTTP request
-    :param http_req http request in byte object
+    :param http_req is a byte object representation of an http request
     :return: string object of the request line
     """
     return http_req[:http_req.find(b'\r\n')].decode('utf-8')
 
 
 def modify_http_request(http_req):
+    """
+    Ensures that http request uses a closed connection (HTTP version 1.0)
+    and
+    :param http_req: an byte object which is immutable
+    :return: a byte array object representation of the modified http request
+    """
     http_req_arr = convert_to_byte_array(http_req)
     http_req_arr = ensure_closed_connection(http_req_arr)
     http_req_arr = make_relative_uri(http_req_arr)
     http_req_arr = append_crlf(http_req_arr)
     return b''.join(http_req_arr)
-
-
-def append_crlf(http_req_arr):
-    http_req_arr = list(map(lambda b: b + b'\r\n', http_req_arr))
-    http_req_arr[len(http_req_arr) - 1] += b'\r\n'
-    return http_req_arr
 
 
 def convert_to_byte_array(http_req):
@@ -195,51 +192,59 @@ def convert_to_byte_array(http_req):
     return mod_http_req[:len(mod_http_req) - 2]
 
 
-def make_relative_uri(http_req_arr):
-    req_line = http_req_arr[0].decode('utf-8')  # string rep of request line
-    host_name = parse_req_line(req_line)[0]  # returns a string object of URI
-    relative_uri = parse_relative_uri(host_name)  # returns byte obj rep
-    http_req_arr[0] = modify_request_line(http_req_arr[0], relative_uri)
+def ensure_closed_connection(http_req_arr):
+    index_connection_header = get_index_connection_header(http_req_arr)
+    if index_connection_header == -1:
+        print("HTTP request does not have a connection header; "
+              "appending connection header with value of close... ", '\r\n')
+        time.sleep(3)
+        http_req_arr.append(DEFAULT_CONNECTION_HEADER)
+    else:
+        print("Ensuring connection value is set to close...")
+        time.sleep(SLEEPYTIME)
+        http_req_arr[index_connection_header] = DEFAULT_CONNECTION_HEADER
+        print("Current connection header is now set to: ", http_req_arr[index_connection_header], '\n')
     return http_req_arr
 
 
-def modify_request_line(req_line, relative_uri):
+def make_relative_uri(http_req_arr):
+    req_line = http_req_arr[0].decode('utf-8')
+    url = get_url(req_line).split(":")[0]
+    relative_uri = get_url_path(url)
+    http_req_arr[0] = modify_url_to_relative_url(http_req_arr[0], relative_uri)
+    return http_req_arr
+
+
+def append_crlf(http_req_arr):
+    http_req_arr = list(map(lambda b: b + b'\r\n', http_req_arr))
+    http_req_arr[len(http_req_arr) - 1] += b'\r\n'
+    return http_req_arr
+
+
+def modify_url_to_relative_url(req_line, relative_uri):
     req_line_arr = req_line.split(b' ')
     req_line_arr[1] = relative_uri
     return b' '.join(req_line_arr)
 
 
-def parse_relative_uri(host_name):
-    index = host_name.find('/')
+def get_url(req_line):
+    url = req_line.split(" ")[1]
+    return url.split("://")[1]
+
+
+def get_url_path(some_url):
+    index = some_url.find('/')
     if index == -1:
         return b'/'
     else:
-        return host_name[index:].encode('utf-8')
+        return some_url[index:].encode('utf-8')
 
 
-def ensure_closed_connection(http_req_arr):
-    index = index_closed_connection_header(http_req_arr)
-    if index == -1:
-        http_req_arr.append(b'Connection:close')
-    else:
-        conn_value = get_connection_value(http_req_arr[index])
-        print("Current connection value is: ", conn_value)
-        http_req_arr[index] = b'Connection:close'
-        print("Changing connection value: ", http_req_arr[index], '\n')
-    return http_req_arr
-
-
-def index_closed_connection_header(http_req_arr):
+def get_index_connection_header(http_req_arr):
     for index in range(len(http_req_arr)):
         if http_req_arr[index].startswith(b'Connection'):
             return index
     return -1
-
-
-def get_connection_value(header):
-    header = header.decode('utf-8')
-    header = header.split(':')
-    return header[1]
 
 
 def is_get_request(req_line):
@@ -256,38 +261,40 @@ def verify_absolute_uri(req_line):
 
 def is_absolute_uri(req_line):
     req_uri = req_line.split(' ')
-    return req_uri[1].find('http') == 0 and req_uri[1].find('://') == 4
+    return req_uri[1].find('http') == 0 and \
+           req_uri[1].find('://') == 4 and \
+           req_uri[1].find('www') == 7
 
 
-def parse_req_line(req_line):
+def get_hostname_port(req_line):
     """
-    Parses an HTTP request line to return its host name and port. Assumes that
+    Parses an HTTP request line to return its url and port. Assumes that
     req_line is a properly formatted request line
     :param req_line: string object of the request line
     :return: tuple consisting of a host_name (string) and a port (integer).
     """
-    req_line_arr = req_line.split(' ')  # breaks request line into its 3 pieces
-    uri = req_line_arr[1].split('://')[1]  # removes the 'http://' from URI
-    host_name = get_host_name(uri)
-    port = get_port(uri)
-    return host_name, port
+    url = get_url(req_line)
+    return get_hostname(url), get_port(url)
 
 
-def get_host_name(uri):
-    end = uri.find('/')
+def get_hostname(url):
+    end = url.find('/')
     if end != -1:
-        return uri[:end]
+        return url[:end]
     else:
-        return uri
+        return url
 
 
-def get_port(uri):
-    colon = uri.find(':')
+def get_port(url):
+    colon = url.find(':')
+    fwd_slash = url.find('/')
     if colon != -1:
-        int(uri[colon + 1:len(uri)])
+        if fwd_slash == -1:
+            return int(url[colon + 1:len(url)])
+        else:
+            return int(url[colon + 1:fwd_slash])
     else:
-        # no port given; default port is 80
-        return 80
+        return DEFAULT_HTTP_PORT
 
 
 def init_tcp_conn(host_name, port):
